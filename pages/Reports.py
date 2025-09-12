@@ -1,0 +1,182 @@
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import datetime as dt
+import joblib
+
+# -------------------------
+# Sidebar (custom links, exclude app.py)
+# -------------------------
+st.markdown("""
+    <style>
+    /* Hide Streamlit's default sidebar navigation */
+    [data-testid="stSidebarNav"] {
+        display: none;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
+st.sidebar.title("📂 Navigation")
+st.sidebar.page_link("pages/Home.py", label=" Home")
+st.sidebar.page_link("pages/Food_Demand.py", label="🍽 Food Demand")
+st.sidebar.page_link("pages/Reports.py", label="📑  Reports")
+st.sidebar.page_link("pages/Train_Model.py", label="🛠 Train Model")
+st.sidebar.page_link("pages/About_Us.py", label="🛈 About Us")
+st.sidebar.page_link("pages/Logout.py", label="🚪 Logout")
+
+
+# -------------------------
+# Config
+# -------------------------
+st.set_page_config(page_title="📊 Reports - Food Demand Forecast", layout="wide")
+
+st.title("📊 Reports Dashboard")
+st.markdown("Get insights on sales, demand patterns, and model performance.")
+
+# -------------------------
+# Load Data & Metadata
+# -------------------------
+@st.cache_data
+def load_data():
+    df = pd.read_csv("restaurant_sales_updated_items.csv")
+    df['Date'] = pd.to_datetime(df['Date'])
+    return df
+
+def load_meta():
+    import joblib
+    META_PATH = "model_meta.joblib"
+    meta = joblib.load(META_PATH)
+
+    # 🔹 If session_state has updated renames, use them
+    if 'item_mapping' in st.session_state:
+        meta['item_mapping'] = st.session_state['item_mapping']
+        meta['target_cols'] = st.session_state['target_cols']
+    return meta
+
+df = load_data()
+meta = load_meta()
+
+item_mapping = meta['item_mapping']
+target_cols = meta['target_cols']
+
+# Rename dataset item columns for UI display
+rename_map = {k: v for k, v in item_mapping.items()}
+df_renamed = df.rename(columns=rename_map)
+# -------------------------
+# Section 1: Sales Trend Analysis
+# -------------------------
+st.subheader("📈 Sales Trend Analysis")
+
+option = st.selectbox(
+    "Select Metric",
+    ["Total Orders"] + list(rename_map.values())
+)
+time_filter = st.selectbox("Select Time Range", ["Last 6 Months", "Last 3 Months", "Last 1 Month", "Last Week"])
+
+today = df_renamed['Date'].max()
+if time_filter == "Last 6 Months":
+    start_date = today - pd.DateOffset(months=6)
+elif time_filter == "Last 3 Months":
+    start_date = today - pd.DateOffset(months=3)
+elif time_filter == "Last 1 Month":
+    start_date = today - pd.DateOffset(months=1)
+else:
+    start_date = today - pd.DateOffset(weeks=1)
+
+df_filtered = df_renamed[df_renamed['Date'] >= start_date]
+
+fig, ax = plt.subplots(figsize=(10,5))
+if option == "Total Orders":
+    ax.plot(df_filtered['Date'], df_filtered['Total_Orders'], label="Total Orders", color="orange")
+else:
+    ax.plot(df_filtered['Date'], df_filtered[option], label=option, color="green")
+
+ax.set_xlabel("Date")
+ax.set_ylabel("Units Sold")
+ax.set_title(f"{option} Trend ({time_filter})")
+ax.legend()
+st.pyplot(fig)
+
+# -------------------------
+# Section 2: Per-Item Sales Breakdown
+# -------------------------
+st.subheader("🥗 Per-Item Sales Breakdown")
+
+breakdown_filter = st.selectbox(
+    "Select Time Range",
+    ["Last 6 Months", "Last 3 Months", "Last 1 Month", "Last Week"],
+    key="item_breakdown_filter"
+)
+
+if breakdown_filter == "Last 6 Months":
+    start_date = today - pd.DateOffset(months=6)
+elif breakdown_filter == "Last 3 Months":
+    start_date = today - pd.DateOffset(months=3)
+elif breakdown_filter == "Last 1 Month":
+    start_date = today - pd.DateOffset(months=1)
+else:
+    start_date = today - pd.DateOffset(weeks=1)
+
+period_df = df_renamed[df_renamed['Date'] >= start_date]
+
+# Item sums
+item_cols = list(rename_map.values())
+item_sums = period_df[item_cols].sum()
+
+plt.style.use("dark_background")
+fig_pie, ax_pie = plt.subplots(figsize=(3,3))
+ax_pie.pie(
+    item_sums,
+    labels=item_sums.index,
+    autopct="%1.1f%%",
+    startangle=90,
+    textprops={'color':"w"}
+)
+ax_pie.set_title(f"Item-wise Sales Share ({breakdown_filter})", color="w")
+st.pyplot(fig_pie)
+
+# -------------------------
+# Section 3: Top Performers
+# -------------------------
+st.subheader("🏆 Top Performing Items")
+
+top_time_filter = st.selectbox(
+    "Select Time Range for Top Performers",
+    ["Last 6 Months", "Last 3 Months", "Last 1 Month", "Last Week"],
+    key="top_perf_filter"
+)
+
+if top_time_filter == "Last 6 Months":
+    start_date = today - pd.DateOffset(months=6)
+elif top_time_filter == "Last 3 Months":
+    start_date = today - pd.DateOffset(months=3)
+elif top_time_filter == "Last 1 Month":
+    start_date = today - pd.DateOffset(months=1)
+else:
+    start_date = today - pd.DateOffset(weeks=1)
+
+df_top = df_renamed[df_renamed['Date'] >= start_date]
+
+item_totals = df_top[list(rename_map.values())].sum().sort_values(ascending=False)
+
+st.bar_chart(item_totals.head(5))
+st.write(item_totals.head(10))
+
+# -------------------------
+# Section 4: Model Accuracy (Actual vs Predicted)
+# -------------------------
+st.subheader("🎯 Model Accuracy (Actual vs Predicted)")
+
+try:
+    pred_df = pd.read_csv("predictions.csv")
+    pred_df['Date'] = pd.to_datetime(pred_df['Date'])
+
+    fig2, ax2 = plt.subplots(figsize=(10,5))
+    ax2.plot(pred_df['Date'], pred_df['Actual'], label="Actual", color="blue")
+    ax2.plot(pred_df['Date'], pred_df['Predicted'], label="Predicted", color="red", linestyle="--")
+    ax2.set_title("Actual vs Predicted Orders")
+    ax2.legend()
+    st.pyplot(fig2)
+except:
+    st.info("⚠️ Predictions file not found. Train model first to see accuracy report.")
