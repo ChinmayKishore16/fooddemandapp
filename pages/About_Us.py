@@ -158,13 +158,7 @@ with col3:
         </div>
     """, unsafe_allow_html=True)
 
-with col4:
-    st.markdown("""
-        <div class="stat-card">
-            <h3>500+</h3>
-            <p>Restaurants Served</p>
-        </div>
-    """, unsafe_allow_html=True)
+
 
 # -------------------------
 # Technology Stack
@@ -202,32 +196,45 @@ with tech_col3:
 # -------------------------
 st.markdown("## 👥 Our Team")
 
-team_col1, team_col2, team_col3 = st.columns(3)
+team_col1, team_col2, team_col3,team_col4 = st.columns(4)
 
 with team_col1:
     st.markdown("""
         <div class="team-card">
-            <h3>👨‍💻 AI/ML Engineers</h3>
-            <p>Specialists in deep learning, neural networks, and predictive analytics 
-            with expertise in restaurant industry challenges.</p>
+            <h3> Chinmay </h3>
+            <p>Student of RVITM</p>
+            <h4>Phone Number:95356 02216</h4>
+            
         </div>
     """, unsafe_allow_html=True)
 
 with team_col2:
     st.markdown("""
         <div class="team-card">
-            <h3>👨‍🍳 Industry Experts</h3>
-            <p>Restaurant professionals with deep understanding of food service 
-            operations, inventory management, and customer behavior.</p>
+            <h3> Gouri Shankar </h3>
+            <p>Student of RVITM</p>
+            <p>Phone Number: 93806 69032</p>
+           
         </div>
     """, unsafe_allow_html=True)
 
 with team_col3:
     st.markdown("""
         <div class="team-card">
-            <h3>🎨 UX/UI Designers</h3>
-            <p>Creating intuitive and beautiful interfaces that make complex 
-            data accessible to restaurant managers and staff.</p>
+            <h3>Darshan </h3>
+            <p>Student of RVITM</p>
+            <p>Phone Number:81477 57573</p>
+           
+        </div>
+    """, unsafe_allow_html=True)
+    
+    with team_col4:
+    st.markdown("""
+        <div class="team-card">
+            <h3>Girish C K</h3>
+            <p>Student of RVITM</p>
+             <p>Phone Number:91482 80383</p>
+           
         </div>
     """, unsafe_allow_html=True)
 
@@ -241,26 +248,24 @@ contact_col1, contact_col2 = st.columns(2)
 with contact_col1:
     st.markdown("""
         *🏢 Office Address:*
-        Food Demand Solutions Ltd.
-        Tech Park, Bangalore
-        Karnataka, India - 560001
+        Chaithanya Layout, 8th Phase, J.P. Nagar, 
+        Bengaluru, Karnataka – 560076. 
+        
         
         *📧 Email:*
-        info@fooddemandai.com
-        support@fooddemandai.com
+        Chinmay@gmail.com
+        girishck04@gmail.com
     """)
 
 with contact_col2:
     st.markdown("""
         *📱 Phone:*
-        +91 80 1234 5678
-        +91 80 8765 4321
+        +91 95356 02216
+        +91 81477 57573
         
-        *🌐 Website:*
-        www.fooddemandai.com
         
-        *📱 Social Media:*
-        @FoodDemandAI
+        
+       
     """)
 
 # -------------------------
