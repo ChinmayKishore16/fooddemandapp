@@ -35,34 +35,64 @@ st.title("📊 Reports Dashboard")
 st.markdown("Get insights on sales, demand patterns, and model performance.")
 
 # -------------------------
-# Load Data & Metadata
+# Load Data & Metadata (Updated)
 # -------------------------
+import os
+import joblib
+
+DATA_PATH = "restaurant_sales_updated_items.csv"
+META_PATH = "model_meta.joblib"
+
 @st.cache_data
-def load_data():
-    df = pd.read_csv("restaurant_sales_updated_items.csv")
+def load_data(path=DATA_PATH):
+    df = pd.read_csv(path)
     df['Date'] = pd.to_datetime(df['Date'])
     return df
 
-def load_meta():
-    import joblib
-    META_PATH = "model_meta.joblib"
-    meta = joblib.load(META_PATH)
+def load_meta(path=META_PATH):
+    # Load metadata safely
+    if os.path.exists(path):
+        try:
+            meta = joblib.load(path)
+        except Exception as e:
+            st.warning(f"⚠️ Failed to load meta file: {e}. Using defaults.")
+            meta = {}
+    else:
+        meta = {}
 
-    # 🔹 If session_state has updated renames, use them
+    # Ensure defaults
+    default_map = {
+        'item1': 'item1', 'item2': 'item2',
+        'item3': 'item3', 'item4': 'item4', 'item5': 'item5'
+    }
+    meta.setdefault('item_mapping', default_map)
+    meta.setdefault('target_cols', ['Total_Orders'] + list(default_map.values()))
+
+    # Prefer session_state overrides if present
     if 'item_mapping' in st.session_state:
-        meta['item_mapping'] = st.session_state['item_mapping']
-        meta['target_cols'] = st.session_state['target_cols']
+        ss_map = st.session_state.get('item_mapping', {})
+        if isinstance(ss_map, dict) and ss_map:
+            meta['item_mapping'] = ss_map
+            meta['target_cols'] = st.session_state.get('target_cols', meta['target_cols'])
+
     return meta
 
+# Load dataset and metadata
 df = load_data()
 meta = load_meta()
 
+# Extract mappings
 item_mapping = meta['item_mapping']
 target_cols = meta['target_cols']
 
-# Rename dataset item columns for UI display
-rename_map = {k: v for k, v in item_mapping.items()}
+# Only rename columns that exist in the dataframe
+rename_map = {k: v for k, v in item_mapping.items() if k in df.columns}
 df_renamed = df.rename(columns=rename_map)
+
+# Keep session_state updated so other pages see correct names
+st.session_state['item_mapping'] = item_mapping
+st.session_state['target_cols'] = target_cols
+
 # -------------------------
 # Section 1: Sales Trend Analysis
 # -------------------------

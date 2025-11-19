@@ -64,6 +64,34 @@ def validate_columns(df):
     extra = [c for c in df.columns if c not in REQUIRED_COLUMNS]
     return missing, extra
 
+def load_existing_model_info():
+    """Load information about previously trained models"""
+    try:
+        if (os.path.exists(MODEL_PATH) and 
+            os.path.exists(META_PATH) and 
+            os.path.exists("predictions.csv")):
+            
+            meta = joblib.load(META_PATH)
+            
+            # Try to load training metrics if available
+            training_info = {
+                'model_exists': True,
+                'model_path': MODEL_PATH,
+                'meta_info': meta,
+                'has_predictions': os.path.exists("predictions.csv")
+            }
+            
+            # Load predictions to show basic info
+            if training_info['has_predictions']:
+                pred_df = pd.read_csv("predictions.csv")
+                training_info['prediction_samples'] = len(pred_df)
+            
+            return training_info
+        else:
+            return {'model_exists': False}
+    except Exception as e:
+        return {'model_exists': False, 'error': str(e)}
+
 def create_sequences(df, feature_cols, target_cols, window_size=7):
     X_list, y_list, idx_meta = [], [], []
     n = len(df)
@@ -85,37 +113,169 @@ def scale_X(X, scaler):
 # Page UI
 # -------------------------
 st.title("📂 Train Food Demand Forecasting Model")
-st.markdown("Upload your dataset to retrain the **LSTM demand forecasting model**.")
+st.markdown("Upload your dataset to retrain the *LSTM demand forecasting model*.")
 
-st.warning("**Required Columns:** " + ", ".join(REQUIRED_COLUMNS))
+st.warning("*Required Columns:* " + ", ".join(REQUIRED_COLUMNS))
 st.markdown("""
-- `Date`: parseable by `pd.to_datetime`
-- `Holiday`: Yes / No
-- `Weather`: Sunny / Rainy / Cold
-- `item1..item5`: integer units sold per item
-- `Total_Orders` and `Total_Revenue`: numeric
+- Date: parseable by pd.to_datetime
+- Holiday: Yes / No
+- Weather: Sunny / Rainy / Cold
+- item1..item5: integer units sold per item
+- Total_Orders and Total_Revenue: numeric
 """)
 
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 
-epochs = st.slider("Epochs", 5, 100, 30)
+epochs = st.slider("Epochs", 5, 200, 80)
 batch_size = st.slider("Batch Size", 8, 64, 16)
 
+# Show previous training results if available
+model_info = load_existing_model_info()
+
+# Check both session state and disk for training results
+if ('training_complete' in st.session_state and st.session_state.training_complete) or model_info['model_exists']:
+    
+    # If we have session state results, use those; otherwise show basic model info
+    if 'training_complete' in st.session_state and st.session_state.training_complete:
+        st.success("✅ Model training completed successfully!")
+        results = st.session_state.model_results
+        
+        # Display detailed training results
+        st.markdown("## 📊 Training Results")
+        
+        # Metrics in columns
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("MAE (Mean Absolute Error)", f"{results['mae']:.2f}")
+        with col2:
+            st.metric("RMSE (Root Mean Squared Error)", f"{results['rmse']:.2f}")
+        with col3:
+            st.metric("R² (Coefficient of Determination)", f"{results['r2']:.3f}")
+        
+        # Additional info
+        st.info(f"Generated {results['samples_count']} samples with input shape {results['input_shape']}")
+        
+        # Show training history if available
+        if 'training_history' in st.session_state:
+            st.markdown("### 📈 Training History")
+            history_df = pd.DataFrame(st.session_state.training_history)
+            st.line_chart(history_df[['loss', 'val_loss']])
+        
+        # Show predictions vs actual if available
+        if 'evaluation_results' in st.session_state:
+            eval_data = st.session_state.evaluation_results
+            st.markdown("### 🎯 Model Performance")
+            
+            # Create comparison dataframe
+            comparison_df = pd.DataFrame({
+                'Actual': eval_data['y_test_inv'][:, 0][:20],  # First 20 samples
+                'Predicted': eval_data['y_pred_inv'][:, 0][:20]
+            })
+            
+            st.write("*Actual vs Predicted (First 20 Test Samples):*")
+            st.line_chart(comparison_df)
+        
+        # Show tomorrow forecast if available
+        if 'tomorrow_forecast' in st.session_state:
+            st.markdown("### 🔮 Tomorrow's Forecast Preview")
+            forecast_data = st.session_state.tomorrow_forecast
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"*📅 Date:* {forecast_data['pred_date']}")
+                st.write(f"*🌤️ Weather:* {forecast_data['weather_cat']} ({forecast_data['weather_temp']}°C)")
+                st.write(f"*🏖️ Holiday:* {'Yes' if forecast_data['holiday_flag'] else 'No'}")
+            
+            with col2:
+                st.write("*📊 Predicted Demand:*")
+                for item, value in forecast_data.items():
+                    if item not in ['pred_date', 'weather_cat', 'weather_temp', 'weather_precip', 'holiday_flag', 'forecast_time_used']:
+                        st.write(f"• {item}: *{value} units*")
+    
+    elif model_info['model_exists']:
+        # Show basic model info when session state is lost but model files exist
+        st.success("✅ Previously trained model found!")
+        st.markdown("## 📊 Model Information")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Model Status", "Ready")
+        with col2:
+            if 'prediction_samples' in model_info:
+                st.metric("Prediction Samples", model_info['prediction_samples'])
+        with col3:
+            meta_info = model_info['meta_info']
+            st.metric("Features", len(meta_info.get('feature_cols', [])))
+        
+        st.info("ℹ️ A trained model is available. You can use it for predictions or train a new one.")
+        
+        # Show current item mapping
+        if 'meta_info' in model_info and 'item_mapping' in model_info['meta_info']:
+            st.markdown("### 🏷️ Current Item Names")
+            item_mapping = model_info['meta_info']['item_mapping']
+            for key, value in item_mapping.items():
+                st.write(f"• {key} → *{value}*")
+        
+        # Show predictions chart if available
+        if model_info['has_predictions']:
+            st.markdown("### 📈 Previous Predictions")
+            try:
+                pred_df = pd.read_csv("predictions.csv")
+                pred_df['Date'] = pd.to_datetime(pred_df['Date'])
+                
+                # Show last 20 predictions
+                recent_pred = pred_df.tail(20)
+                st.line_chart(recent_pred.set_index('Date')[['Actual', 'Predicted']])
+                st.write(f"📊 Showing last 20 predictions from {len(pred_df)} total samples")
+            except Exception as e:
+                st.warning(f"Could not load prediction chart: {str(e)}")
+    
+    st.write("✨ You can now use the 'Food Demand' page for predictions!")
+    st.markdown("---")
+
 # Train button
-train_button = st.button(" Train Model Now")
+if st.button("🚀 Train Model Now"):
+    if uploaded_file is not None:
+        st.session_state.start_training = True
+    else:
+        st.error("❌ Please upload a CSV file first before training the model!")
+        st.warning("📁 Use the file uploader above to select your training data.")
+
+# Initialize session state
+if 'start_training' not in st.session_state:
+    st.session_state.start_training = False
+if 'training_complete' not in st.session_state:
+    st.session_state.training_complete = False
+if 'model_results' not in st.session_state:
+    st.session_state.model_results = {}
 
 # -------------------------
-# Main logic
+# Main Training Logic
 # -------------------------
-if uploaded_file is not None and train_button:
+if uploaded_file is not None and st.session_state.start_training:
+    
+    # Clear previous training results
+    if 'model_results' in st.session_state:
+        del st.session_state.model_results
+    if 'training_history' in st.session_state:
+        del st.session_state.training_history
+    if 'evaluation_results' in st.session_state:
+        del st.session_state.evaluation_results
+    if 'tomorrow_forecast' in st.session_state:
+        del st.session_state.tomorrow_forecast
+    
     df = pd.read_csv(uploaded_file)
     missing, extra = validate_columns(df)
 
     if missing:
         st.error(f"❌ Missing columns: {missing}")
+        st.session_state.start_training = False
         st.stop()
     else:
         st.success("✅ Columns validated successfully!")
+
+    # Store data in session state
+    st.session_state.training_data = df.copy()
 
     # -------------------------
     # Preprocessing
@@ -161,31 +321,66 @@ if uploaded_file is not None and train_button:
     # Model Training
     # -------------------------
     st.subheader("Step 2: Training Model")
-    model = Sequential()
-    model.add(LSTM(128, input_shape=(WINDOW_SIZE, n_features)))
-    model.add(Dropout(0.2))
-    model.add(Dense(64, activation='relu'))
-    model.add(Dense(y_train_s.shape[1], activation='linear'))
-    model.compile(
-    optimizer='adam',
-    loss=MeanSquaredError(),
-    metrics=[MeanAbsoluteError()]
+
+    # Clear any existing models from memory
+    import tensorflow as tf
+    from tensorflow.keras.layers import BatchNormalization
+
+    tf.keras.backend.clear_session()
+
+    # Build improved model
+    with tf.name_scope("demand_forecasting_model"):
+        model = Sequential(name="lstm_demand_model")
+        model.add(LSTM(128, return_sequences=True, input_shape=(WINDOW_SIZE, n_features), name="lstm_layer_1"))
+        model.add(Dropout(0.3, name="dropout_1"))
+        model.add(LSTM(64, return_sequences=False, name="lstm_layer_2"))
+        model.add(BatchNormalization(name="batch_norm"))
+        model.add(Dropout(0.3, name="dropout_2"))
+        model.add(Dense(64, activation='relu', name="dense_hidden_1"))
+        model.add(Dense(32, activation='relu', name="dense_hidden_2"))
+        model.add(Dense(y_train_s.shape[1], activation='linear', name="output_layer"))
+
+        # Use Huber Loss (more robust than MSE for sales data)
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+            loss=tf.keras.losses.Huber(),
+            metrics=[MeanAbsoluteError()]
+        )
+
+    # Training callbacks
+    es = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True, verbose=1)
+    mc = ModelCheckpoint("best_model.h5", save_best_only=True, verbose=1)
+    lr_schedule = tf.keras.callbacks.ReduceLROnPlateau(
+        monitor='val_loss', factor=0.5, patience=5, min_lr=1e-5, verbose=1
     )
 
-    es = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    mc = ModelCheckpoint("best_model.h5", save_best_only=True)
+    # Train with progress bar
+    with st.spinner("Training improved model... This may take a few minutes."):
+        try:
+            history = model.fit(
+                X_train_s, y_train_s,
+                validation_data=(X_test_s, y_test_s),
+                epochs=epochs,
+                batch_size=batch_size,
+                callbacks=[es, mc, lr_schedule],
+                verbose=1
+            )
 
-    history = model.fit(
-        X_train_s, y_train_s,
-        validation_data=(X_test_s, y_test_s),
-        epochs=epochs,
-        batch_size=batch_size,
-        callbacks=[es, mc],
-        verbose=0
-    )
+            st.success("✅ Training Complete with Improved Model!")
 
-    st.success("✅ Training Complete!")
-    st.line_chart(pd.DataFrame(history.history)[['loss','val_loss']])
+            # Store training history in session state
+            st.session_state.training_history = history.history
+
+            # Display training chart
+            history_df = pd.DataFrame(history.history)
+            st.line_chart(history_df[['loss','val_loss']])
+
+        except Exception as e:
+            st.error(f"❌ Training failed: {str(e)}")
+            st.warning("💡 Try reducing batch size or epochs, or restart the app and try again.")
+            st.session_state.start_training = False
+            st.stop()
+
 
 
     # -------------------------
@@ -297,9 +492,27 @@ if uploaded_file is not None and train_button:
     r2 = r2_score(y_test_inv, y_pred_inv)
 
 
-    st.write(f"**MAE:** {mae:.2f}")
-    st.write(f"**RMSE:** {rmse:.2f}")
-    st.write(f"**R²:** {r2:.2f}")
+    st.write(f"*MAE:* {mae:.2f}")
+    st.write(f"*RMSE:* {rmse:.2f}")
+    st.write(f"*R²:* {r2:.2f}")
+
+    # Store results in session state
+    st.session_state.model_results = {
+        'mae': mae,
+        'rmse': rmse,
+        'r2': r2,
+        'samples_count': X.shape[0],
+        'input_shape': X.shape[1:]
+    }
+    
+    # Store evaluation data for visualization
+    st.session_state.evaluation_results = {
+        'y_test_inv': y_test_inv,
+        'y_pred_inv': y_pred_inv
+    }
+    
+    st.session_state.training_complete = True
+    st.session_state.start_training = False  # Reset training flag
 
         # -------------------------
     # Save Predictions for Reports
@@ -335,39 +548,109 @@ if uploaded_file is not None and train_button:
 
     st.success("✅ Model & scalers saved!")
 
-   # -------------------------
-    # Rename items
-    # -------------------------
-    st.markdown("---")
-    st.write("### Rename Food Items")
+# -------------------------
+# Rename Items Section (Always Available)
+# -------------------------
+st.markdown("---")
+st.markdown("## 🏷️ Rename Food Items")
 
-    with st.form("rename_form", clear_on_submit=False):
-        rename_dict = {}
-        for i in range(1, 6):
-            rename_dict[f'item{i}'] = st.text_input(f"Enter name for item{i}", f"item{i}")
+# Check if model files exist
+try:
+    meta = joblib.load(META_PATH)
+    model_exists = True
+    current_mapping = meta.get('item_mapping', {f'item{i}': f'item{i}' for i in range(1, 6)})
+except:
+    model_exists = False
+    current_mapping = {f'item{i}': f'item{i}' for i in range(1, 6)}
 
-        submitted = st.form_submit_button("Save Names")
-        if submitted:
-            import joblib
+if model_exists:
+    # Initialize session state for rename form
+    if 'rename_form_key' not in st.session_state:
+        st.session_state.rename_form_key = 0
+    
+    st.write("*Current Item Names:*")
+    
+    # Use session state to store form values
+    if f'item_names_{st.session_state.rename_form_key}' not in st.session_state:
+        st.session_state[f'item_names_{st.session_state.rename_form_key}'] = current_mapping.copy()
+    
+    # Create input fields outside of form first
+    rename_dict = {}
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        rename_dict['item1'] = st.text_input(
+            "Item 1 Name:", 
+            value=current_mapping.get('item1', 'item1'),
+            key=f"item1_{st.session_state.rename_form_key}"
+        )
+        rename_dict['item2'] = st.text_input(
+            "Item 2 Name:", 
+            value=current_mapping.get('item2', 'item2'),
+            key=f"item2_{st.session_state.rename_form_key}"
+        )
+        rename_dict['item3'] = st.text_input(
+            "Item 3 Name:", 
+            value=current_mapping.get('item3', 'item3'),
+            key=f"item3_{st.session_state.rename_form_key}"
+        )
+    
+    with col2:
+        rename_dict['item4'] = st.text_input(
+            "Item 4 Name:", 
+            value=current_mapping.get('item4', 'item4'),
+            key=f"item4_{st.session_state.rename_form_key}"
+        )
+        rename_dict['item5'] = st.text_input(
+            "Item 5 Name:", 
+            value=current_mapping.get('item5', 'item5'),
+            key=f"item5_{st.session_state.rename_form_key}"
+        )
+
+    # Save button
+    if st.button("💾 Save Item Names", key=f"save_btn_{st.session_state.rename_form_key}"):
+        try:
+            # Load and update metadata
             meta = joblib.load(META_PATH)
             meta['item_mapping'] = rename_dict
             meta['target_cols'] = ['Total_Orders'] + list(rename_dict.values())
             joblib.dump(meta, META_PATH)
-
-            # 🔹 Store in session_state immediately
+            
+            # Store in session state
             st.session_state['item_mapping'] = rename_dict
             st.session_state['target_cols'] = ['Total_Orders'] + list(rename_dict.values())
+            
+            # Increment form key to reset form with new values
+            st.session_state.rename_form_key += 1
+            
+            st.success("✅ Item names saved successfully!")
+            st.balloons()
+            
+            # Show updated mapping
+            st.write("*Updated Item Names:*")
+            for old_name, new_name in rename_dict.items():
+                st.write(f"• {old_name} → *{new_name}*")
+            
+            # Force rerun to update the form
+            st.rerun()
+                
+        except Exception as e:
+            st.error(f"❌ Error saving item names: {str(e)}")
+else:
+    st.warning("⚠️ Please train a model first before renaming items.")
 
-            st.success("✅ Item names saved! Now reflected across the app.")
-
-
+# Only show training section if inside training flow
+if uploaded_file is not None and st.session_state.get('start_training', False):
+    
+    # Continue with rest of training process that was moved...
+    st.subheader("Step 5: Tomorrow Forecast Preview")
+    
     if OPENWEATHER_API_KEY == "YOUR_OPENWEATHER_KEY_HERE":
         st.info("⚠️ Set your OpenWeather API key in code to enable live tomorrow prediction.")
     else:
         tomorrow_res = predict_future(model, input_scaler, output_scaler, df, OPENWEATHER_API_KEY)
         st.write("📌 Tomorrow's Prediction:")
         st.json(tomorrow_res)
-
-    
-
-
+        
+        # Store tomorrow forecast in session state for persistent display
+        st.session_state.tomorrow_forecast = tomorrow_res
