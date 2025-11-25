@@ -158,13 +158,7 @@ with col3:
         </div>
     """, unsafe_allow_html=True)
 
-with col4:
-    st.markdown("""
-        <div class="stat-card">
-            <h3>500+</h3>
-            <p>Restaurants Served</p>
-        </div>
-    """, unsafe_allow_html=True)
+
 
 # -------------------------
 # Technology Stack
@@ -175,7 +169,7 @@ tech_col1, tech_col2, tech_col3 = st.columns(3)
 
 with tech_col1:
     st.markdown("""
-        *Frontend & UI:*
+        Frontend & UI:
         - 🎨 Streamlit
         - 📱 Responsive Design
         - 🎯 User-friendly Interface
@@ -183,7 +177,7 @@ with tech_col1:
 
 with tech_col2:
     st.markdown("""
-        *Machine Learning:*
+        Machine Learning:
         - 🧠 TensorFlow/Keras
         - 📊 Scikit-learn
         - 🔄 LSTM Neural Networks
@@ -191,45 +185,30 @@ with tech_col2:
 
 with tech_col3:
     st.markdown("""
-        *Data & APIs:*
+        Data & APIs:
         - 🌤️ OpenWeather API
         - 📈 Pandas & NumPy
         - 🗄️ SQLite Database
     """)
 
-# -------------------------
-# Team Section
-# -------------------------
-st.markdown("## 👥 Our Team")
-
-team_col1, team_col2, team_col3 = st.columns(3)
-
-with team_col1:
-    st.markdown("""
-        <div class="team-card">
-            <h3>👨‍💻 AI/ML Engineers</h3>
-            <p>Specialists in deep learning, neural networks, and predictive analytics 
-            with expertise in restaurant industry challenges.</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with team_col2:
-    st.markdown("""
-        <div class="team-card">
-            <h3>👨‍🍳 Industry Experts</h3>
-            <p>Restaurant professionals with deep understanding of food service 
-            operations, inventory management, and customer behavior.</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with team_col3:
-    st.markdown("""
-        <div class="team-card">
-            <h3>🎨 UX/UI Designers</h3>
-            <p>Creating intuitive and beautiful interfaces that make complex 
-            data accessible to restaurant managers and staff.</p>
-        </div>
-    """, unsafe_allow_html=True)
+st.markdown("""
+    <style>
+        .team-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+        }
+        .team-card h3 {
+            margin-bottom: 5px;
+        }
+        .team-card p {
+            margin: 2px 0;
+            font-size: 14px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
 # -------------------------
 # Contact Information
@@ -240,27 +219,25 @@ contact_col1, contact_col2 = st.columns(2)
 
 with contact_col1:
     st.markdown("""
-        *🏢 Office Address:*
-        Food Demand Solutions Ltd.
-        Tech Park, Bangalore
-        Karnataka, India - 560001
+        🏢 Office Address:
+        Chaithanya Layout, 8th Phase, J.P. Nagar, 
+        Bengaluru, Karnataka – 560076. 
         
-        *📧 Email:*
-        info@fooddemandai.com
-        support@fooddemandai.com
+        
+        📧 Email:
+        Chinmay24680@gmail.com
+        girishck04@gmail.com
     """)
 
 with contact_col2:
     st.markdown("""
-        *📱 Phone:*
-        +91 80 1234 5678
-        +91 80 8765 4321
+        📱 Phone:
+        +91 95356 02216
+        +91 81477 57573
         
-        *🌐 Website:*
-        www.fooddemandai.com
         
-        *📱 Social Media:*
-        @FoodDemandAI
+        
+       
     """)
 
 # -------------------------
